@@ -8,14 +8,58 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import React, {useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import babelConfig from '../../babel.config';
+import {debounce} from 'lodash';
+import {fetchLocations, fetchWeatherForecast} from '../../api/weather';
+import {weatherImages} from '../../constants';
 
 const Weather = () => {
   const [showSearch, toggleSearch] = useState(false);
+  const [locations, setLocations] = useState([]);
+  const [weather, setWeather] = useState({});
+
+  const handleLocation = loc => {
+    // console.log('location', loc);
+    setLocations([]);
+    toggleSearch(false);
+    fetchWeatherForecast({
+      cityName: loc.name,
+      days: '7',
+    }).then(data => {
+      setWeather(data);
+      console.log('forecast data', data);
+    });
+  };
+
+  const handleSearch = value => {
+    if (value.length > 2) {
+      //fetch locations
+      fetchLocations({cityName: value}).then(data => {
+        console.log('got location', data);
+        setLocations(data);
+      });
+    }
+  };
+
+  useEffect(() => {
+    fetMyWeatherData();
+  }, []);
+  const handleTextDebounce = useCallback(debounce(handleSearch, 1200), []);
+
+  const {current, location, forecast} = weather;
+
+  const fetMyWeatherData = async () => {
+    fetchWeatherForecast({
+      cityName: 'Noida',
+      days: '7',
+    }).then(data => {
+      setWeather(data);
+    });
+  };
   return (
-    <SafeAreaView style={{backgroundColor: 'dodgerblue', flex: 2}}>
+    <SafeAreaView style={{backgroundColor: 'dodgerblue', flex: 1}}>
       {/* Searchbar */}
       <View
         style={{
@@ -28,12 +72,12 @@ const Weather = () => {
         }}>
         {showSearch ? (
           <TextInput
+            onChangeText={handleTextDebounce}
             placeholder="Search  City"
             placeholderTextColor={'#000'}
             style={{left: 20}}
           />
         ) : null}
-
         <TouchableOpacity
           onPress={() => toggleSearch(!showSearch)}
           style={{
@@ -47,6 +91,40 @@ const Weather = () => {
           <Icon name="search" size={20} />
         </TouchableOpacity>
       </View>
+      {locations.length > 0 && showSearch ? (
+        <View
+          style={{
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 20,
+            backgroundColor: '#fff',
+            margin: 10,
+          }}>
+          {locations.map((loc, index) => {
+            return (
+              <TouchableOpacity
+                onPress={() => handleLocation(loc)}
+                style={{
+                  flexDirection: 'row',
+                  borderColor: 'black',
+                  // borderWidth: 1,
+                  padding: 10,
+                  // borderRadius: 5,
+                  // top: 5,
+                  backgroundColor: '#fff',
+                  width: '90%',
+                  borderBottomColor: 'black',
+                }}
+                key={index}>
+                <Icon name="map-pin" size={20} />
+                <Text style={{marginLeft: 20, fontSize: 16}}>
+                  {loc?.name},{loc?.country}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
       {/* Weather Display */}
       <View
         style={{
@@ -58,7 +136,8 @@ const Weather = () => {
         {/* Location */}
         <View style={{flexDirection: 'row', top: 20}}>
           <Text style={{fontSize: 30, fontWeight: 900, color: '#fff'}}>
-            Patna ,{' '}
+            {location?.name}
+            {','}
           </Text>
           <Text
             style={{
@@ -69,24 +148,24 @@ const Weather = () => {
               color: '#fff',
               fontWeight: 700,
             }}>
-            Bihar
+            {location?.country}
           </Text>
         </View>
         {/* Image */}
         <View
           style={{alignContent: 'center', justifyContent: 'center', top: 30}}>
           <Image
-            source={require('../assets/partlycloudy.png')}
+            source={weatherImages[current?.condition?.text]}
             style={{width: 200, height: 200}}
           />
         </View>
         {/* Temperature */}
         <View style={{alignItems: 'center', justifyContent: 'center', top: 40}}>
           <Text style={{fontSize: 40, fontWeight: 900, color: '#fff'}}>
-            23&deg;
+            {current?.temp_c}&deg;
           </Text>
           <Text style={{fontSize: 25, fontWeight: 600, color: '#fff'}}>
-            Partly Cloudy
+            {current?.condition?.text}
           </Text>
         </View>
       </View>
@@ -116,7 +195,7 @@ const Weather = () => {
                 color: '#fff',
                 fontWeight: 800,
               }}>
-              22Km
+              {current?.wind_kph}km
             </Text>
           </View>
           <View style={{flexDirection: 'row'}}>
@@ -131,7 +210,7 @@ const Weather = () => {
                 color: '#fff',
                 fontWeight: 800,
               }}>
-              23%
+              {current?.humidity}%
             </Text>
           </View>
           <View style={{flexDirection: 'row'}}>
@@ -146,7 +225,7 @@ const Weather = () => {
                 color: '#fff',
                 fontWeight: 800,
               }}>
-              6:05 AM
+              {}
             </Text>
           </View>
         </View>
@@ -158,7 +237,7 @@ const Weather = () => {
           alignItems: 'flex-start',
           padding: 10,
           flex: 1,
-          top:40
+          top: 40,
         }}>
         <View style={{alignItems: 'flex-start'}}>
           {/* Heading */}
@@ -177,55 +256,203 @@ const Weather = () => {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{top:10,padding:15,}}>
-            <View style={{flexDirection:'row',flex:1}}>
-              <View style={{padding:10,borderRadius:20,backgroundColor:'grey',height:'60%',opacity:0.6}}>
+            contentContainerStyle={{top: 10, padding: 15}}>
+            {weather?.forecast?.forecastday?.map((item, index) => {
+              return (
+                <View
+                  key={index}
+                  style={{
+                    padding: 10,
+                    borderRadius: 20,
+                    backgroundColor: 'grey',
+                    height: '60%',
+                    opacity: 0.6,
+                  }}>
+                  <Image
+                    source={require('../assets/heavyrain.png')}
+                    style={{height: 50, width: 50}}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      textAlign: 'center',
+                      color: '#fff',
+                      fontWeight: 800,
+                    }}>
+                    {item.date}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      textAlign: 'center',
+                      color: '#fff',
+                      fontWeight: 800,
+                    }}>
+                    13&deg;
+                  </Text>
+                </View>
+              );
+            })}
+            <View style={{flexDirection: 'row', flex: 1}}>
+              <View
+                style={{
+                  padding: 10,
+                  borderRadius: 20,
+                  backgroundColor: 'grey',
+                  height: '60%',
+                  opacity: 0.6,
+                  left: 10,
+                }}>
                 <Image
                   source={require('../assets/heavyrain.png')}
                   style={{height: 50, width: 50}}
                 />
-                <Text style={{fontSize:15,textAlign:'center',color:'#fff',fontWeight:800}}>Monday</Text>
-                <Text style={{fontSize:15,textAlign:'center',color:'#fff',fontWeight:800}}>13&deg;</Text>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    textAlign: 'center',
+                    color: '#fff',
+                    fontWeight: 800,
+                  }}>
+                  Tuesday
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    textAlign: 'center',
+                    color: '#fff',
+                    fontWeight: 800,
+                  }}>
+                  13&deg;
+                </Text>
               </View>
-              <View style={{padding:10,borderRadius:20,backgroundColor:'grey',height:'60%',opacity:0.6,left:10}}>
+              <View
+                style={{
+                  padding: 10,
+                  borderRadius: 20,
+                  backgroundColor: 'grey',
+                  height: '60%',
+                  opacity: 0.6,
+                  left: 20,
+                }}>
                 <Image
                   source={require('../assets/heavyrain.png')}
                   style={{height: 50, width: 50}}
                 />
-                 <Text style={{fontSize:15,textAlign:'center',color:'#fff',fontWeight:800}}>Tuesday</Text>
-                 <Text style={{fontSize:15,textAlign:'center',color:'#fff',fontWeight:800}}>13&deg;</Text>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    textAlign: 'center',
+                    color: '#fff',
+                    fontWeight: 800,
+                  }}>
+                  Wednesday
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    textAlign: 'center',
+                    color: '#fff',
+                    fontWeight: 800,
+                  }}>
+                  13&deg;
+                </Text>
               </View>
-              <View style={{padding:10,borderRadius:20,backgroundColor:'grey',height:'60%',opacity:0.6,left:20}}>
+              <View
+                style={{
+                  padding: 10,
+                  borderRadius: 20,
+                  backgroundColor: 'grey',
+                  height: '60%',
+                  opacity: 0.6,
+                  left: 30,
+                }}>
                 <Image
                   source={require('../assets/heavyrain.png')}
                   style={{height: 50, width: 50}}
                 />
-                 <Text style={{fontSize:15,textAlign:'center',color:'#fff',fontWeight:800}}>Wednesday</Text>
-                <Text style={{fontSize:15,textAlign:'center',color:'#fff',fontWeight:800}}>13&deg;</Text>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    textAlign: 'center',
+                    color: '#fff',
+                    fontWeight: 800,
+                  }}>
+                  Thursday
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    textAlign: 'center',
+                    color: '#fff',
+                    fontWeight: 800,
+                  }}>
+                  13&deg;
+                </Text>
               </View>
-              <View style={{padding:10,borderRadius:20,backgroundColor:'grey',height:'60%',opacity:0.6,left:30}}>
+              <View
+                style={{
+                  padding: 10,
+                  borderRadius: 20,
+                  backgroundColor: 'grey',
+                  height: '60%',
+                  opacity: 0.6,
+                  left: 40,
+                }}>
                 <Image
                   source={require('../assets/heavyrain.png')}
                   style={{height: 50, width: 50}}
                 />
-                 <Text style={{fontSize:15,textAlign:'center',color:'#fff',fontWeight:800}}>Thursday</Text>
-                <Text style={{fontSize:15,textAlign:'center',color:'#fff',fontWeight:800}}>13&deg;</Text>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    textAlign: 'center',
+                    color: '#fff',
+                    fontWeight: 800,
+                  }}>
+                  Friday
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    textAlign: 'center',
+                    color: '#fff',
+                    fontWeight: 800,
+                  }}>
+                  13&deg;
+                </Text>
               </View>
-              <View style={{padding:10,borderRadius:20,backgroundColor:'grey',height:'60%',opacity:0.6,left:40}}>
+              <View
+                style={{
+                  padding: 10,
+                  borderRadius: 20,
+                  backgroundColor: 'grey',
+                  height: '60%',
+                  opacity: 0.6,
+                  left: 50,
+                }}>
                 <Image
                   source={require('../assets/heavyrain.png')}
                   style={{height: 50, width: 50}}
                 />
-                 <Text style={{fontSize:15,textAlign:'center',color:'#fff',fontWeight:800}}>Friday</Text>
-                <Text style={{fontSize:15,textAlign:'center',color:'#fff',fontWeight:800}}>13&deg;</Text>
-              </View>
-              <View style={{padding:10,borderRadius:20,backgroundColor:'grey',height:'60%',opacity:0.6,left:50}}>
-                <Image
-                  source={require('../assets/heavyrain.png')}
-                  style={{height: 50, width: 50}}
-                />
-                 <Text style={{fontSize:15,textAlign:'center',color:'#fff',fontWeight:800}}>Saturday</Text>
-                <Text style={{fontSize:15,textAlign:'center',color:'#fff',fontWeight:800}}>13&deg;</Text>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    textAlign: 'center',
+                    color: '#fff',
+                    fontWeight: 800,
+                  }}>
+                  Saturday
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    textAlign: 'center',
+                    color: '#fff',
+                    fontWeight: 800,
+                  }}>
+                  13&deg;
+                </Text>
               </View>
             </View>
           </ScrollView>
